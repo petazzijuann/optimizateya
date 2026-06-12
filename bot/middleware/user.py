@@ -47,21 +47,23 @@ class UserSessionMiddleware(BaseMiddleware):
     @staticmethod
     async def _get_or_create(session, tg_user) -> User:
         from sqlalchemy import select
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-        rows = await session.execute(select(User).where(User.telegram_id == tg_user.id))
-        user = rows.scalar_one_or_none()
-        if user is None:
-            user = User(
+        stmt = (
+            pg_insert(User)
+            .values(
                 telegram_id=tg_user.id,
                 username=tg_user.username,
                 first_name=tg_user.first_name or "",
                 locale="es-AR",
             )
-            session.add(user)
-            await session.flush()
-            log.info("user_created", user=hash_user_id(user.id))
-        elif user.deleted_at is not None:
-            # el usuario volvió: levantamos el tombstone
+            .on_conflict_do_nothing(index_elements=["telegram_id"])
+        )
+        await session.execute(stmt)
+
+        rows = await session.execute(select(User).where(User.telegram_id == tg_user.id))
+        user = rows.scalar_one()
+        if user.deleted_at is not None:
             user.deleted_at = None
-            await session.flush()
+        log.info("user_resolved", user=hash_user_id(user.id))
         return user
