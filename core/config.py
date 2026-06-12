@@ -54,16 +54,24 @@ class Settings(BaseSettings):
 
     @field_validator("database_url")
     @classmethod
-    def _must_be_async_driver(cls, v: str) -> str:
-        PostgresDsn(v)  # valida forma de DSN
+    def _normalize_to_asyncpg(cls, v: str) -> str:
+        """Acepta URLs de Supabase/Railway (postgres://, sslmode=) y las adapta a asyncpg."""
+        if v.startswith("postgres://"):
+            v = v.replace("postgres://", "postgresql://", 1)
+        if v.startswith("postgresql://"):
+            v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        # asyncpg no entiende sslmode= (estilo libpq); su equivalente es ssl=
+        v = v.replace("?sslmode=", "?ssl=").replace("&sslmode=", "&ssl=")
+        PostgresDsn(v.replace("postgresql+asyncpg://", "postgresql://", 1))  # valida la forma
         if not v.startswith("postgresql+asyncpg://"):
-            raise ValueError("DATABASE_URL debe usar el driver asyncpg (postgresql+asyncpg://)")
+            raise ValueError("DATABASE_URL debe ser una URL de Postgres")
         return v
 
     @property
     def database_url_sync(self) -> str:
-        """URL con driver sync (psycopg2) para Alembic offline y APScheduler jobstore."""
-        return self.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+        """URL con driver sync (psycopg2) para Alembic offline."""
+        url = self.database_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+        return url.replace("?ssl=", "?sslmode=").replace("&ssl=", "&sslmode=")
 
     @property
     def llm_base_url(self) -> str:
