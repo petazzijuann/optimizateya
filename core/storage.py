@@ -1,20 +1,23 @@
-"""Object storage en Cloudflare R2 (S3-compatible) vía aioboto3.
+"""Object storage con backend intercambiable: Cloudinary o Cloudflare R2.
 
-Claves con prefijo por usuario: users/{user_id}/... — el borrado total de un
-usuario (privacidad) elimina el prefijo completo.
+Se elige por config: si CLOUDINARY_URL está seteada se usa Cloudinary;
+si no, R2 (R2_*). Claves con prefijo por usuario: users/{user_id}/... — el
+borrado total de un usuario (privacidad) elimina el prefijo completo.
 """
 
-import aioboto3
+from types import ModuleType
 
 from core.config import get_settings
 
 
-def _session() -> aioboto3.Session:
-    s = get_settings()
-    return aioboto3.Session(
-        aws_access_key_id=s.r2_access_key_id,
-        aws_secret_access_key=s.r2_secret_access_key,
-    )
+def _backend() -> ModuleType:
+    if get_settings().cloudinary_url:
+        from core import storage_cloudinary
+
+        return storage_cloudinary
+    from core import storage_r2
+
+    return storage_r2
 
 
 def user_prefix(user_id: str) -> str:
@@ -24,33 +27,17 @@ def user_prefix(user_id: str) -> str:
 async def upload_bytes(
     key: str, data: bytes, content_type: str = "application/octet-stream"
 ) -> None:
-    s = get_settings()
-    async with _session().client("s3", endpoint_url=s.r2_endpoint_url) as s3:
-        await s3.put_object(Bucket=s.r2_bucket, Key=key, Body=data, ContentType=content_type)
+    await _backend().upload_bytes(key, data, content_type)
 
 
 async def download_bytes(key: str) -> bytes:
-    s = get_settings()
-    async with _session().client("s3", endpoint_url=s.r2_endpoint_url) as s3:
-        resp = await s3.get_object(Bucket=s.r2_bucket, Key=key)
-        return await resp["Body"].read()
+    return await _backend().download_bytes(key)
 
 
 async def delete_key(key: str) -> None:
-    s = get_settings()
-    async with _session().client("s3", endpoint_url=s.r2_endpoint_url) as s3:
-        await s3.delete_object(Bucket=s.r2_bucket, Key=key)
+    await _backend().delete_key(key)
 
 
 async def delete_user_prefix(user_id: str) -> int:
     """Borra todos los objetos del usuario. Devuelve cantidad eliminada."""
-    s = get_settings()
-    deleted = 0
-    async with _session().client("s3", endpoint_url=s.r2_endpoint_url) as s3:
-        paginator = s3.get_paginator("list_objects_v2")
-        async for page in paginator.paginate(Bucket=s.r2_bucket, Prefix=user_prefix(user_id)):
-            keys = [{"Key": obj["Key"]} for obj in page.get("Contents", [])]
-            if keys:
-                await s3.delete_objects(Bucket=s.r2_bucket, Delete={"Objects": keys})
-                deleted += len(keys)
-    return deleted
+    return await _backend().delete_prefix(user_prefix(user_id))

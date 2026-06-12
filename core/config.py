@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     stt_model: str = Field(default="whisper-large-v3-turbo", alias="STT_MODEL")
     llm_monthly_budget_tokens: int = Field(default=2_000_000, alias="LLM_MONTHLY_BUDGET_TOKENS")
 
+    # Storage Cloudinary (si está seteada, tiene prioridad sobre R2)
+    cloudinary_url: str = Field(default="", alias="CLOUDINARY_URL")
+
     # Storage R2
     r2_account_id: str = Field(default="", alias="R2_ACCOUNT_ID")
     r2_access_key_id: str = Field(default="", alias="R2_ACCESS_KEY_ID")
@@ -65,6 +68,13 @@ class Settings(BaseSettings):
         PostgresDsn(v.replace("postgresql+asyncpg://", "postgresql://", 1))  # valida la forma
         if not v.startswith("postgresql+asyncpg://"):
             raise ValueError("DATABASE_URL debe ser una URL de Postgres")
+        return v
+
+    @field_validator("cloudinary_url")
+    @classmethod
+    def _check_cloudinary_url(cls, v: str) -> str:
+        if v and not v.startswith("cloudinary://"):
+            raise ValueError("CLOUDINARY_URL debe tener formato cloudinary://key:secret@cloud")
         return v
 
     @property

@@ -60,13 +60,13 @@ async def save_file(
     text_content: str = "",
     content_type: str = "application/octet-stream",
 ) -> MemoryItem:
-    """Sube el archivo a R2 bajo el prefijo del usuario y lo indexa."""
+    """Sube el archivo al storage bajo el prefijo del usuario y lo indexa."""
     key = f"{storage.user_prefix(user.id)}{uuid.uuid4().hex}-{filename}"
     try:
         await storage.upload_bytes(key, data, content_type)
     except Exception as exc:
         # sin storage configurado igual guardamos la parte textual
-        log.warning("r2_upload_failed", error=type(exc).__name__)
+        log.warning("storage_upload_failed", error=type(exc).__name__)
         key = None  # type: ignore[assignment]
     return await save_note(
         session,
