@@ -1,0 +1,15 @@
+# Railway: 3 servicios sobre la misma imagen + Postgres(pgvector) + Redis managed.
+# Crear los servicios apuntando a este repo y override del start command:
+#   api       -> (default del Dockerfile)
+#   worker    -> arq worker.main.WorkerSettings
+#   scheduler -> python -m scheduler.engine
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 60
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
