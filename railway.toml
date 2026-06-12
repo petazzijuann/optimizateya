@@ -8,8 +8,9 @@
 builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
+# Healthcheck SOLO en el servicio api (configurarlo en la UI: Settings → Deploy →
+# Healthcheck Path = /health, Timeout = 120). No va acá porque este archivo aplica
+# a los 3 servicios y worker/scheduler no sirven HTTP.
 [deploy]
-healthcheckPath = "/health"
-healthcheckTimeout = 60
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 5
